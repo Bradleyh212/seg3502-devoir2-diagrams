@@ -1,0 +1,52 @@
+sequenceDiagram
+    autonumber
+    participant App as RegisterDepartmentEmployee
+    box Sous-domaine Employee
+        participant EF as EmployeeFacade
+        participant ER as EmployeeRepository
+        participant F as EmployeeFactory
+        participant User as utilisateurConnecte: Employee
+    end
+
+    Note over App,F: NIVEAU 2 - registerEmployee.<br/>Suite de la Q1 dans q1-level2-assign.mmd.<br/>Noms des operations, fabrique et depot proposes, non imposes par le PDF.
+    App->>EF: registerEmployee(empInfo: EmployeeRegistrationDto)
+    rect rgba(128, 128, 128, 0.10)
+        Note over EF,User: Preconditions - currentUserId provient du contexte authentifie.<br/>Il ne provient pas du DTO du nouvel employe.
+        EF->>ER: findById(currentUserId)
+        ER-->>EF: utilisateurConnecte
+        EF->>User: getJobTitle()
+        User-->>EF: jobTitle du demandeur
+        Note over EF,User: Exiger un Employee existant et jobTitle.title = Airport Manager.<br/>Arreter la commande en cas d'echec, avant toute creation.
+        EF->>ER: existsBySin(empInfo.sin)
+        ER-->>EF: false
+        Note over EF,ER: Si true, arreter la commande sans creation.<br/>Hypothese : le depot garantit aussi l'unicite du SIN a l'enregistrement.
+    end
+
+    rect rgba(128, 128, 128, 0.16)
+        EF->>F: create(empInfo)
+        F->>ER: nextIdentity()
+        ER-->>F: empId: EmployeeId neuf (UUID)
+        Note over F,ER: Allocation de l'identifiant par le depot = choix propose.<br/>La garantie requise est un nouvel identifiant Employee.
+        create participant Job as job: JobTitle
+        F->>Job: new JobTitle(empInfo.jobTitle)
+        Note over Job: job.title = empInfo.jobTitle
+        create participant Addr as addr: Address
+        F->>Addr: new Address(empInfo.address.street, empInfo.address.unitNumber,<br/>empInfo.address.city, empInfo.address.postalCode)
+        Note over Addr: street, unitNumber, city, postalCode initialises.<br/>unitNumber conserve son caractere optionnel [0..1].
+        create participant Bank as bank: BankInfo
+        F->>Bank: new BankInfo(empInfo.bankInfo.accountNumber,<br/>empInfo.bankInfo.branchNumber, empInfo.bankInfo.transitNumber)
+        Note over Bank: accountNumber, branchNumber, transitNumber initialises.
+        create participant Emp as emp: Employee (racine)
+        F->>Emp: new Employee(empId, empInfo.firstName, empInfo.lastName,<br/>empInfo.dateOfBirth, empInfo.sin, job, addr, bank)
+        Note over Emp: id, firstName, lastName, dateOfBirth, sin initialises.<br/>emp.jobTitle = job, emp.address = addr, emp.bankInfo = bank.<br/>Hypothese : emp.department absent avant affectation.<br/>Les trois objets valeur appartiennent a l'agregat Employee.
+        Emp->>Emp: emettre un evenement de creation de l'employe (empId)
+        Note over Emp: Point d'emission propose dans la racine apres initialisation.<br/>Description de l'evenement, pas un nom fourni par le PDF.<br/>Emission = enregistrement local dans les evenements de l'agregat.
+        F-->>EF: emp
+    end
+
+    rect rgba(128, 128, 128, 0.10)
+        EF->>ER: save(emp)
+        ER-->>EF: enregistrement reussi
+        Note over EF,Emp: save persiste l'agregat complet, objets valeur inclus.<br/>Hypothese : publication externe des evenements apres succes<br/>de la transaction, mecanisme non specifie et non modelise.
+        EF-->>App: empId: EmployeeId
+    end

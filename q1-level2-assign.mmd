@@ -1,0 +1,64 @@
+sequenceDiagram
+    autonumber
+    participant App as RegisterDepartmentEmployee
+    box Sous-domaine Employee
+        participant EF as EmployeeFacade
+        participant ER as EmployeeRepository
+        participant Emp as emp: Employee (racine)
+    end
+    box Sous-domaine Department
+        participant DF as DepartmentFacade
+        participant DR as DepartmentRepository
+        participant Dept as dept: Department (racine)
+    end
+
+    Note over App,Dept: NIVEAU 2 - assignEmployeeToDepartment(empId: EmployeeId, deptId: DepartmentId).<br/>Suite de q1-level2.mmd, apres retour d'empId et choix de deptId.<br/>Operations et depots proposes, non imposes par le PDF.
+    rect rgba(128, 128, 128, 0.10)
+        App->>EF: ensureAssignable(empId)
+        EF->>ER: findById(empId)
+        ER-->>EF: emp
+        Note over EF,Emp: Si emp est absent, arreter la commande sans modification.
+        EF->>Emp: getDepartment()
+        Emp-->>EF: absent
+        Note over EF,Emp: Si un department est deja defini, arreter sans modification.<br/>Aucune mutation dans ensureAssignable.
+        EF-->>App: employe existant et sans departement
+
+        App->>DF: ensureExists(deptId)
+        DF->>DR: findById(deptId)
+        DR-->>DF: dept
+        Note over DF,Dept: Si dept est absent, arreter la commande sans modification.<br/>Aucune mutation dans ensureExists.
+        DF-->>App: departement existant
+    end
+
+    Note over App,Dept: Hypothese proposee : une transaction coordonnee couvre verification et mises a jour.<br/>Isolation ou verrouillage adequat contre modification concurrente et annulation des deux sauvegardes en cas d'echec.<br/>Le PDF ne precise pas ce mecanisme, a valider selon les conventions du cours.
+    rect rgba(128, 128, 128, 0.16)
+        App->>EF: assignDepartment(empId, deptId)
+        EF->>ER: findById(empId)
+        ER-->>EF: emp
+        Note over EF,Emp: Meme agregat dans le contexte transactionnel propose.<br/>La racine protege aussi la regle de non-affectation.
+        EF->>Emp: assignDepartment(deptId)
+        Emp->>Emp: verifier department absent puis department = deptId
+        Emp->>Emp: emettre un evenement d'affectation de l'employe (empId, deptId)
+        Note over Emp: Point d'emission propose apres la mutation.<br/>Description de l'evenement, pas un nom fourni par le PDF.<br/>Enregistrement local, sans publication externe avant succes global.
+        Emp-->>EF: affectation effectuee
+        EF->>ER: save(emp)
+        ER-->>EF: sauvegarde dans la transaction
+        EF-->>App: Employee.department = deptId
+    end
+
+    rect rgba(128, 128, 128, 0.10)
+        App->>DF: addEmployee(deptId, empId)
+        DF->>DR: findById(deptId)
+        DR-->>DF: dept
+        DF->>Dept: addEmployee(empId)
+        Dept->>Dept: employees = employees union {empId}
+        Dept->>Dept: emettre un evenement d'ajout au departement (deptId, empId)
+        Note over Dept: Point d'emission propose apres la mutation.<br/>Description de l'evenement, pas un nom fourni par le PDF.<br/>Enregistrement local, sans publication externe avant succes global.
+        Dept-->>DF: identifiant ajoute
+        DF->>DR: save(dept)
+        DR-->>DF: sauvegarde dans la transaction
+        DF-->>App: empId appartient a Department.employees
+    end
+
+    Note over App,Dept: Succes de la commande seulement apres validation de la transaction.<br/>Hypothese : publication externe des evenements apres succes global.<br/>Aucun objet Employee transmis a Department, aucun objet Department transmis a Employee.<br/>Pas de fabrique ici : les deux agregats existent deja.
+    Note over DF,Dept: La notification du responsable figure dans le scenario du cas d'utilisation,<br/>pas dans les postconditions de ces commandes. Le PDF ne fournit ni canal ni gestionnaire.<br/>Un traitement ulterieur des evenements est une possibilite a valider, non une notification realisee ici.

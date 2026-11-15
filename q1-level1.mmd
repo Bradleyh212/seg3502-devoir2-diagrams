@@ -1,0 +1,27 @@
+sequenceDiagram
+    autonumber
+    actor Client as Directeur via interface
+    participant App as RegisterDepartmentEmployee
+    participant EF as EmployeeFacade (proposee)
+    participant DF as DepartmentFacade (proposee)
+
+    Note over App,DF: Architecture validee - operations proposees.<br/>Scenario de succes des deux commandes, sans Scheduling.
+    Client->>App: registerEmployee(empInfo: EmployeeRegistrationDto)
+    Note over App,EF: Preconditions : utilisateur connecte Airport Manager et SIN inexistant.<br/>Verification detaillee au niveau 2.
+    App->>EF: registerEmployee(empInfo)
+    EF-->>App: empId: EmployeeId
+    App-->>Client: empId
+    Note over Client,DF: empId est retourne avant le choix de deptId.<br/>La consultation des departements est hors des deux commandes.
+
+    Client->>App: assignEmployeeToDepartment(empId: EmployeeId, deptId: DepartmentId)
+    App->>EF: ensureAssignable(empId)
+    EF-->>App: employe existant et sans departement
+    App->>DF: ensureExists(deptId)
+    DF-->>App: departement existant
+    Note over App,DF: Poursuivre seulement si les trois preconditions sont satisfaites.<br/>Coordination des mises a jour a preciser au niveau 2.
+    App->>EF: assignDepartment(empId, deptId)
+    EF-->>App: Employee.department = deptId
+    App->>DF: addEmployee(deptId, empId)
+    DF-->>App: empId appartient a Department.employees
+    App-->>Client: affectation reussie
+    Note over EF,DF: References entre agregats par identifiant.<br/>Emissions des evenements detaillees au niveau 2.
