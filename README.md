@@ -257,59 +257,43 @@ sequenceDiagram
         participant Dept as dept: Department (racine)
     end
 
-    Note over App,Dept: NIVEAU 2 - selectShifts(empId: EmployeeId, shiftIds: ShiftId[]).<br/>Operations et depots proposes, non imposes par le PDF.
+    Note over App,Dept: NIVEAU 2 - selectShifts(empId, shiftIds)
 
-    rect rgba(128, 128, 128, 0.10)
-        App->>EF: getAssignedDepartment(empId)
-        EF->>ER: findById(empId)
-        ER-->>EF: emp
-        Note over EF,Emp: Si emp est absent, arreter la commande sans modification.
-        EF->>Emp: getDepartment()
-        Emp-->>EF: deptId
-        Note over EF,Emp: Si aucun departement n'est defini, arreter sans modification.<br/>Aucune mutation dans getAssignedDepartment.
-        EF-->>App: deptId
+    App->>EF: getAssignedDepartment(empId)
+    EF->>ER: findById(empId)
+    ER-->>EF: emp
+    EF->>Emp: getDepartment()
+    Emp-->>EF: deptId
+    EF-->>App: deptId
+
+    App->>SF: ensureUpcoming(shiftIds)
+    SF->>SR: findAllById(shiftIds)
+    SR-->>SF: shifts
+    loop pour chaque shift
+        SF->>Sh: isUpcoming(today)
+        Sh-->>SF: true
     end
+    SF-->>App: quarts existants et a venir
 
-    rect rgba(128, 128, 128, 0.16)
-        App->>SF: ensureUpcoming(shiftIds)
-        SF->>SR: findAllById(shiftIds)
-        SR-->>SF: shifts
-        Note over SF,SR: Si un identifiant n'a pas de Shift correspondant,<br/>arreter la commande sans modification.
-        loop pour chaque shift dans shifts
-            SF->>Sh: isUpcoming(today)
-            Sh-->>SF: true (date posterieure a today)
-        end
-        Note over SF,Sh: Hypothese : today fourni par l'horloge du systeme.<br/>Si un quart n'est pas a venir, arreter sans modification.<br/>Aucune mutation dans ensureUpcoming.
-        SF-->>App: quarts existants et a venir
+    App->>DF: ensureContainsShifts(deptId, shiftIds)
+    DF->>DR: findById(deptId)
+    DR-->>DF: dept
+    loop pour chaque shiftId
+        DF->>Dept: containsShift(shiftId)
+        Dept-->>DF: true
     end
+    DF-->>App: quarts du departement
 
-    rect rgba(128, 128, 128, 0.10)
-        App->>DF: ensureContainsShifts(deptId, shiftIds)
-        DF->>DR: findById(deptId)
-        DR-->>DF: dept
-        loop pour chaque shiftId dans shiftIds
-            DF->>Dept: containsShift(shiftId)
-            Dept-->>DF: true (shiftId dans Department.shifts)
-        end
-        Note over DF,Dept: Appartenance verifiee via Department.shifts (references par id).<br/>Si un quart n'appartient pas au departement, arreter sans modification.<br/>Aucune mutation dans ensureContainsShifts.
-        DF-->>App: quarts du departement
-    end
+    Note over App,Dept: Si une verification echoue (employe absent ou sans departement,<br/>quart inexistant, passe ou hors departement), la commande s'arrete sans modification.
 
-    Note over App,Dept: Hypothese proposee : une transaction couvre verifications et mise a jour.<br/>Seul l'agregat Employee est modifie par cette commande.
-
-    rect rgba(128, 128, 128, 0.16)
-        App->>EF: addPreferredShifts(empId, shiftIds)
-        EF->>ER: findById(empId)
-        ER-->>EF: emp
-        EF->>Emp: addPreferredShifts(shiftIds)
-        Emp->>Emp: preferedShifts = preferedShifts union shiftIds
-        Emp->>Emp: emettre un evenement de selection des quarts (empId, shiftIds)
-        Note over Emp: Point d'emission propose apres la mutation.<br/>Description de l'evenement, pas un nom fourni par le PDF.<br/>Enregistrement local, sans publication externe avant succes global.
-        Emp-->>EF: quarts ajoutes
-        EF->>ER: save(emp)
-        ER-->>EF: sauvegarde dans la transaction
-        EF-->>App: shiftIds inclus dans Employee.preferedShifts
-    end
-
-    Note over App,Dept: Succes de la commande seulement apres validation de la transaction.<br/>Seuls des ShiftId sont transmis a Employee, aucun objet Shift ni Department.<br/>Pas de fabrique ici : aucun agregat n'est cree.
+    App->>EF: addPreferredShifts(empId, shiftIds)
+    EF->>ER: findById(empId)
+    ER-->>EF: emp
+    EF->>Emp: addPreferredShifts(shiftIds)
+    Emp->>Emp: preferedShifts = preferedShifts union shiftIds
+    Emp->>Emp: emettre evenement de selection des quarts (empId, shiftIds)
+    Note over Emp: Point d'emission de l'evenement de domaine.
+    Emp-->>EF: quarts ajoutes
+    EF->>ER: save(emp)
+    EF-->>App: preferences enregistrees
 ```
