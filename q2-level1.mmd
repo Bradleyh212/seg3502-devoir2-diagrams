@@ -1,0 +1,27 @@
+sequenceDiagram
+    autonumber
+    actor Client as Employe via interface
+    participant App as SelectWorkShifts
+    participant EF as EmployeeFacade (proposee)
+    participant SF as SchedulingFacade (proposee)
+    participant DF as DepartmentFacade (proposee)
+
+    Note over App,DF: Architecture validee - operations proposees.<br/>Scenario de succes de la commande selectShifts.
+    Note over Client,App: Etapes 1-2 (consultation des quarts) hors du contrat.<br/>Precondition du cas : employe authentifie.
+    Client->>App: selectShifts(empId: EmployeeId, shiftIds: ShiftId[])
+
+    App->>EF: getAssignedDepartment(empId)
+    EF-->>App: deptId: DepartmentId
+    Note over App,EF: Precondition : employe existant et affecte a un departement.
+
+    App->>SF: ensureUpcoming(shiftIds)
+    SF-->>App: chaque quart existe et est a venir
+
+    App->>DF: ensureContainsShifts(deptId, shiftIds)
+    DF-->>App: chaque quart appartient au departement de l'employe
+    Note over App,DF: Poursuivre seulement si toutes les preconditions sont satisfaites.<br/>Verification detaillee au niveau 2.
+
+    App->>EF: addPreferredShifts(empId, shiftIds)
+    EF-->>App: shiftIds inclus dans Employee.preferedShifts
+    App-->>Client: selection enregistree
+    Note over EF,DF: References entre agregats par identifiant.<br/>Emission de l'evenement detaillee au niveau 2.

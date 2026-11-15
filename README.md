@@ -1,6 +1,6 @@
 # SEG3502 — Devoir 2 : diagrammes UML
 
-Diagrammes de séquence du cas d’utilisation **RegisterDepartmentEmployee**.
+Diagrammes de séquence des cas d’utilisation **RegisterDepartmentEmployee** (Question 1) et **SelectWorkShifts** (Question 2).
 
 Les diagrammes sont affichés ci-dessous. Les fichiers `.mmd` restent disponibles pour modification dans Mermaid Live ou un autre éditeur compatible.
 
@@ -13,6 +13,10 @@ Propositions de travail : les hypothèses de conception figurent dans les notes 
 - [Question 1 — Niveau 2 : registerEmployee](q1-level2.mmd)
 
 - [Question 1 — Niveau 2 : assignEmployeeToDepartment](q1-level2-assign.mmd)
+
+- [2.1 — Question 2 : niveau 1](#21--question-2--niveau-1)
+
+- [2.2 — Question 2 : niveau 2](#22--question-2--niveau-2)
 
 
 ## Question 1 — Niveau 1
@@ -191,4 +195,121 @@ sequenceDiagram
     Note over App,Dept: Succes de la commande seulement apres validation de la transaction.<br/>Hypothese : publication externe des evenements apres succes global.<br/>Aucun objet Employee transmis a Department, aucun objet Department transmis a Employee.<br/>Pas de fabrique ici : les deux agregats existent deja.
     Note over DF,Dept: La notification du responsable figure dans le scenario du cas d'utilisation,<br/>pas dans les postconditions de ces commandes. Le PDF ne fournit ni canal ni gestionnaire.<br/>Un traitement ulterieur des evenements est une possibilite a valider, non une notification realisee ici.
 
+```
+
+
+## 2.1 — Question 2 : niveau 1
+
+[Source Mermaid](q2-level1.mmd)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Employe via interface
+    participant App as SelectWorkShifts
+    participant EF as EmployeeFacade (proposee)
+    participant SF as SchedulingFacade (proposee)
+    participant DF as DepartmentFacade (proposee)
+
+    Note over App,DF: Architecture validee - operations proposees.<br/>Scenario de succes de la commande selectShifts.
+    Note over Client,App: Etapes 1-2 (consultation des quarts) hors du contrat.<br/>Precondition du cas : employe authentifie.
+    Client->>App: selectShifts(empId: EmployeeId, shiftIds: ShiftId[])
+
+    App->>EF: getAssignedDepartment(empId)
+    EF-->>App: deptId: DepartmentId
+    Note over App,EF: Precondition : employe existant et affecte a un departement.
+
+    App->>SF: ensureUpcoming(shiftIds)
+    SF-->>App: chaque quart existe et est a venir
+
+    App->>DF: ensureContainsShifts(deptId, shiftIds)
+    DF-->>App: chaque quart appartient au departement de l'employe
+    Note over App,DF: Poursuivre seulement si toutes les preconditions sont satisfaites.<br/>Verification detaillee au niveau 2.
+
+    App->>EF: addPreferredShifts(empId, shiftIds)
+    EF-->>App: shiftIds inclus dans Employee.preferedShifts
+    App-->>Client: selection enregistree
+    Note over EF,DF: References entre agregats par identifiant.<br/>Emission de l'evenement detaillee au niveau 2.
+```
+
+
+## 2.2 — Question 2 : niveau 2
+
+[Source Mermaid](q2-level2.mmd)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as SelectWorkShifts
+    box Sous-domaine Employee
+        participant EF as EmployeeFacade
+        participant ER as EmployeeRepository
+        participant Emp as emp: Employee (racine)
+    end
+    box Sous-domaine Scheduling
+        participant SF as SchedulingFacade
+        participant SR as ShiftRepository
+        participant Sh as shift: Shift (racine)
+    end
+    box Sous-domaine Department
+        participant DF as DepartmentFacade
+        participant DR as DepartmentRepository
+        participant Dept as dept: Department (racine)
+    end
+
+    Note over App,Dept: NIVEAU 2 - selectShifts(empId: EmployeeId, shiftIds: ShiftId[]).<br/>Operations et depots proposes, non imposes par le PDF.
+
+    rect rgba(128, 128, 128, 0.10)
+        App->>EF: getAssignedDepartment(empId)
+        EF->>ER: findById(empId)
+        ER-->>EF: emp
+        Note over EF,Emp: Si emp est absent, arreter la commande sans modification.
+        EF->>Emp: getDepartment()
+        Emp-->>EF: deptId
+        Note over EF,Emp: Si aucun departement n'est defini, arreter sans modification.<br/>Aucune mutation dans getAssignedDepartment.
+        EF-->>App: deptId
+    end
+
+    rect rgba(128, 128, 128, 0.16)
+        App->>SF: ensureUpcoming(shiftIds)
+        SF->>SR: findAllById(shiftIds)
+        SR-->>SF: shifts
+        Note over SF,SR: Si un identifiant n'a pas de Shift correspondant,<br/>arreter la commande sans modification.
+        loop pour chaque shift dans shifts
+            SF->>Sh: isUpcoming(today)
+            Sh-->>SF: true (date posterieure a today)
+        end
+        Note over SF,Sh: Hypothese : today fourni par l'horloge du systeme.<br/>Si un quart n'est pas a venir, arreter sans modification.<br/>Aucune mutation dans ensureUpcoming.
+        SF-->>App: quarts existants et a venir
+    end
+
+    rect rgba(128, 128, 128, 0.10)
+        App->>DF: ensureContainsShifts(deptId, shiftIds)
+        DF->>DR: findById(deptId)
+        DR-->>DF: dept
+        loop pour chaque shiftId dans shiftIds
+            DF->>Dept: containsShift(shiftId)
+            Dept-->>DF: true (shiftId dans Department.shifts)
+        end
+        Note over DF,Dept: Appartenance verifiee via Department.shifts (references par id).<br/>Si un quart n'appartient pas au departement, arreter sans modification.<br/>Aucune mutation dans ensureContainsShifts.
+        DF-->>App: quarts du departement
+    end
+
+    Note over App,Dept: Hypothese proposee : une transaction couvre verifications et mise a jour.<br/>Seul l'agregat Employee est modifie par cette commande.
+
+    rect rgba(128, 128, 128, 0.16)
+        App->>EF: addPreferredShifts(empId, shiftIds)
+        EF->>ER: findById(empId)
+        ER-->>EF: emp
+        EF->>Emp: addPreferredShifts(shiftIds)
+        Emp->>Emp: preferedShifts = preferedShifts union shiftIds
+        Emp->>Emp: emettre un evenement de selection des quarts (empId, shiftIds)
+        Note over Emp: Point d'emission propose apres la mutation.<br/>Description de l'evenement, pas un nom fourni par le PDF.<br/>Enregistrement local, sans publication externe avant succes global.
+        Emp-->>EF: quarts ajoutes
+        EF->>ER: save(emp)
+        ER-->>EF: sauvegarde dans la transaction
+        EF-->>App: shiftIds inclus dans Employee.preferedShifts
+    end
+
+    Note over App,Dept: Succes de la commande seulement apres validation de la transaction.<br/>Seuls des ShiftId sont transmis a Employee, aucun objet Shift ni Department.<br/>Pas de fabrique ici : aucun agregat n'est cree.
 ```
