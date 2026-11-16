@@ -7,7 +7,7 @@ sequenceDiagram
 
     Note over App,DF: Architecture validee - operations proposees.<br/>Scenario de succes des deux commandes, sans Scheduling.
     Client->>App: registerEmployee(empInfo: EmployeeRegistrationDto)
-    Note over App,EF: Preconditions : utilisateur connecte Airport Manager et SIN inexistant.<br/>Verification detaillee au niveau 2.
+    Note over App,DF: Preconditions : Airport Manager connecte, SIN inexistant.<br/>Verification detaillee au niveau 2.
     App->>EF: registerEmployee(empInfo)
     EF-->>App: empId: EmployeeId
     App-->>Client: empId

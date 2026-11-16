@@ -26,7 +26,6 @@ Propositions de travail : les hypothèses de conception figurent dans les notes 
 
 
 ```mermaid
-
 sequenceDiagram
     autonumber
     actor Client as Directeur via interface
@@ -36,7 +35,7 @@ sequenceDiagram
 
     Note over App,DF: Architecture validee - operations proposees.<br/>Scenario de succes des deux commandes, sans Scheduling.
     Client->>App: registerEmployee(empInfo: EmployeeRegistrationDto)
-    Note over App,EF: Preconditions : utilisateur connecte Airport Manager et SIN inexistant.<br/>Verification detaillee au niveau 2.
+    Note over App,DF: Preconditions : Airport Manager connecte, SIN inexistant.<br/>Verification detaillee au niveau 2.
     App->>EF: registerEmployee(empInfo)
     EF-->>App: empId: EmployeeId
     App-->>Client: empId
@@ -54,7 +53,6 @@ sequenceDiagram
     DF-->>App: empId appartient a Department.employees
     App-->>Client: affectation reussie
     Note over EF,DF: References entre agregats par identifiant.<br/>Emissions des evenements detaillees au niveau 2.
-
 ```
 
 
